@@ -79,7 +79,6 @@ bool doCMD(String cmd, String flag, long timeout) {
     str = "";
     while (mySerial.available()) {
       str += (char)mySerial.read();
-      //      delay(1);
     }
     if (str != "") {
       Serial.println(str);// 打印输出
@@ -108,7 +107,7 @@ bool doCMD(String cmd, String flag, long timeout) {
 bool connectTCP() {
   bool linkOk = true;
   //连接服务器
-  String s(F("AT+CIPSTART=\"TCP\",\"192.168.15.98\",6868"));// 字符串存入FLASH
+  String s(F("AT+CIPSTART=\"TCP\",\"192.168.15.98\",6868"));// 连接的TCP服务器地址和端口号
   if (!doCMD(s, F("OK|CONNECTED"), 3000)) {
     linkOk = false;
   }
@@ -120,9 +119,7 @@ bool connectTCP() {
   }
   if (!linkOk) {
     Serial.println(F("!!SERVER NOT CONNECTED!!"));
-  } else {
   }
-  //  serverLinked = linkOk;
   return linkOk;
 }
 void printDateTime(const RtcDateTime& dt) {
@@ -196,8 +193,8 @@ void closeAC() {
   TIMER_CONFIG_KHZ(38);//PWM端口频率KHz
 
   sendpresumable();
-  sendGree(0x51, 8);//000自动 100制冷 010除湿 110送风 001制热； 1开；00自动 10小风 01中风 11大风；0扫风；0睡眠//关
-  sendGree(0x0A, 8);//温度0000-16度 1000-17度 1100-18度…. 0111-30度 低位在后
+  sendGree(0x51, 8);
+  sendGree(0x0A, 8);
   sendGree(0x20, 8);
   sendGree(0x50, 8);
   sendGree(0x02, 3);
@@ -211,6 +208,7 @@ void closeAC() {
   mark(650);
   space(0);
 }
+// 空调的控制目前只支持格力
 void setAC() {
   TIMER_DISABLE_INTR; //Timer2 Overflow Interrupt
   pinMode(IRPin, OUTPUT);//PWM端口
@@ -233,15 +231,17 @@ void setAC() {
   else if (mode_AC == 0)
     m = 0b00000000;
   t = temp_AC - 26;
-  byte code1 = 0x40 | s | 0b00001000 | m;
-  byte code2 = temp_AC - 16;
-  byte code3 = t;
+
+  byte code1 = 0x40 | s | 0b00001000 | m; //000自动 100制冷 010除湿 110送风 001制热；1开；00自动 10小风 01中风 11大风；0扫风；0睡眠 【从低到高】
+  byte code2 = temp_AC - 16; //温度0000 --- 26度
+  byte code3 = t; //温度0000 --- 16度，校验码，可能因空调型号不同有所差异
+  
   Serial.println(code1, BIN);
   Serial.println(code2, BIN);
   Serial.println(code3, BIN);
   sendpresumable();
-  sendGree(code1, 8);//000自动 100制冷 010除湿 110送风 001制热； 1开；00自动 10小风 01中风 11大风；0扫风；0睡眠//关
-  sendGree(code2, 4); //温度0000-26度
+  sendGree(code1, 8); 
+  sendGree(code2, 4); 
   sendGree(0x0, 4);
   sendGree(0x20, 8);
   sendGree(0x50, 8);
@@ -314,10 +314,10 @@ void connectWIFI() {
   u8x8.println("Connecting...");
   doCMD(F("AT+RST"), F("OK"), 2000);
   doCMD(F("AT+CWMODE=1"), F("OK"), 2000);
-  doCMD(F("AT+CWJAP_DEF=\"somnus\",\"somnusym\""), F("GOT"), 50000);
+  doCMD(F("AT+CWJAP_DEF=\"somnus\",\"somnusym\""), F("GOT"), 50000); //连接的WiFi名和密码
   delay(2000);
   connectTCP();
-  u8x8.println("WIFI ready!");
+  u8x8.println("WiFi ready!");
   delay(300);
   u8x8.clear();
 }
@@ -340,7 +340,7 @@ void setup () {
   connectWIFI();
   pinMode(rotaryPin, INPUT);
   Rtc.Begin();
-  Rtc.SetDateTime(RtcDateTime(__DATE__, __TIME__)); //修正DS1302存储的时间
+  Rtc.SetDateTime(RtcDateTime(__DATE__, __TIME__)); //修正DS1302存储的时间，若非即时上传使用，请注释此行
   Wire.begin();
   u8x8.clearDisplay();
   pinMode(ledPin, OUTPUT);
@@ -430,7 +430,7 @@ void loop () {
     if (customKey) Serial.println(customKey);
     switch (customKey) {
       case '1': {
-          //控制点灯
+          //控制灯
           if (state_LIGHT == false)
             digitalWrite(ledPin, HIGH);
           else
@@ -449,13 +449,11 @@ void loop () {
         }
       case '2': {
           //继电器控制风扇
-          //控制点灯
           if (state_FAN == false)
             digitalWrite(fanPin, HIGH);
           else
             digitalWrite(fanPin, LOW);
           state_FAN = !state_FAN;
-          //        Rtc.SetDateTime(t);
           break;
         }
       case '3': {
@@ -486,7 +484,7 @@ void loop () {
     if (customKey) Serial.println(customKey);
     switch (customKey) {
       case '1': {
-          //控制点灯
+          //控制灯
           if (state_LIGHT == false)
             digitalWrite(ledPin, HIGH);
           else
